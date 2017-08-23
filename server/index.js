@@ -13,7 +13,6 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 */
-
 'use strict';
 
 // express server
@@ -42,48 +41,60 @@ var testMode = ('test' === app.get('env'));
 var cfAppOptions = {};
 
 try {
-  if (devMode) {
-    let filePath = './config/local.json';
-    fs.accessSync(filePath, fs.constants.R_OK);
-    try {
-      let localEnv = JSON.parse(fs.readFileSync(filePath));
-      cfAppOptions.vcap = {
-        services: localEnv
-      };
-      logger.info(`Using local CF environment read from ${filePath}`);
-    } catch (err) {
-      logger.warn(`Config file ${filePath} is not a valid JSON file and will not be used.`);
+    if (devMode) {
+        let filePath = process.env.CREDENTIAL_FILE || './config/local.json';
+        fs.accessSync(filePath, fs.constants.R_OK);
+        try {
+            let localEnv = JSON.parse(fs.readFileSync(filePath));
+            if (process.env.CREDENTIAL_FILE) {
+                cfAppOptions.vcap = {
+                    services: {
+                        "pm-20": [
+                            { credentials: localEnv }
+                        ]
+                    }
+                };
+            } else {
+                cfAppOptions.vcap = {
+                    services: localEnv
+                };
+            }
+
+            logger.info(`Using local CF environment read from ${filePath}`);
+        } catch (err) {
+            logger.warn(`Config file ${filePath} is not a valid JSON file and will not be used.`);
+        }
     }
-  }
 } catch (err) {
-  logger.debug(`Failed to read the dev config file: ${err}`);
+    logger.debug(`Failed to read the dev config file: ${err}`);
 }
 
-// get the app environment from Cloud Foundry
+console.log(cfAppOptions.vcap.services)
+    // get the app environment from Cloud Foundry
 var appEnv = cfenv.getAppEnv(cfAppOptions);
 var pmServiceName = process.env.PA_SERVICE_LABEL ? process.env.PA_SERVICE_LABEL : 'pm-20';
 var pmServiceEnv = appEnv.services[pmServiceName] && appEnv.services[pmServiceName][0];
 
 app.set('app env', appEnv);
 if (pmServiceEnv) {
-  app.set('pm service env', pmServiceEnv);
+    app.set('pm service env', pmServiceEnv);
 } else if (!testMode) {
-  logger
-      .warn('Service is not linked with your application!');
-  logger.warn('Running application with limited functionallity.');
+    logger
+        .warn('Service is not linked with your application!');
+    logger.warn('Running application with limited functionallity.');
 }
 
 // development only
 if (devMode) {
-  let errorhandler = require('errorhandler');
-  app.use(errorhandler());
+    let errorhandler = require('errorhandler');
+    app.use(errorhandler());
 }
 
 // serve the files out of ./public/build as our main files
 app.use(express.static(__dirname + '/../public/build'));
 app.use(express.static(__dirname + '/../app/static'));
 app.use(bodyParser.urlencoded({
-  extended: false
+    extended: false
 }));
 app.use(bodyParser.json());
 app.use(morganLogger);
@@ -91,11 +102,11 @@ app.use(morganLogger);
 app.use('/env', routes.env);
 
 function start() {
-  // start server on the specified port and binding host
-  app.listen(port, appEnv.host, function () {
-    // print a message when the server starts listening
-    logger.info('Server listening on port ' + port);
-  });
+    // start server on the specified port and binding host
+    app.listen(port, appEnv.host, function() {
+        // print a message when the server starts listening
+        logger.info('Server listening on port ' + port);
+    });
 }
 
 exports.app = app;
